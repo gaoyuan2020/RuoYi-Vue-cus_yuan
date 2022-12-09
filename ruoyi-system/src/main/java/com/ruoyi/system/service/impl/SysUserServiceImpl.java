@@ -2,19 +2,24 @@ package com.ruoyi.system.service.impl;
 
 import com.ruoyi.common.annotation.DataScope;
 import com.ruoyi.common.config.RuoYiConfig;
+import com.ruoyi.common.constant.Constants;
 import com.ruoyi.common.constant.UserConstants;
 import com.ruoyi.common.core.domain.entity.SysRole;
 import com.ruoyi.common.core.domain.entity.SysUser;
+import com.ruoyi.common.enums.UserStatus;
 import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.common.utils.CacheUtils;
+import com.ruoyi.common.utils.DateUtils;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.StringUtils;
+import com.ruoyi.common.utils.bean.BeanUtils;
 import com.ruoyi.common.utils.bean.BeanValidators;
 import com.ruoyi.common.utils.file.JsonFileUtils;
 import com.ruoyi.common.utils.spring.SpringUtils;
-import com.ruoyi.system.domain.SysPost;
-import com.ruoyi.system.domain.SysUserPost;
 import com.ruoyi.system.domain.SysUserRole;
-import com.ruoyi.system.mapper.*;
+import com.ruoyi.system.mapper.SysRoleMapper;
+import com.ruoyi.system.mapper.SysUserMapper;
+import com.ruoyi.system.mapper.SysUserRoleMapper;
 import com.ruoyi.system.service.ISysConfigService;
 import com.ruoyi.system.service.ISysUserService;
 import org.slf4j.Logger;
@@ -28,6 +33,8 @@ import org.springframework.util.CollectionUtils;
 import javax.validation.Validator;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -48,13 +55,7 @@ public class SysUserServiceImpl implements ISysUserService
     private SysRoleMapper roleMapper;
 
     @Autowired
-    private SysPostMapper postMapper;
-
-    @Autowired
     private SysUserRoleMapper userRoleMapper;
-
-    @Autowired
-    private SysUserPostMapper userPostMapper;
 
     @Autowired
     private ISysConfigService configService;
@@ -77,8 +78,38 @@ public class SysUserServiceImpl implements ISysUserService
         if (!RuoYiConfig.isNoDatabaseEnabled()) {
             return userMapper.selectUserList(user);
         } else {
-            return JsonFileUtils.readJson(sysUserFilePath, SysUser.class);
+            List<SysUser> userList = getSysUsers();
+
+            List<SysUser> result = new ArrayList<>();
+            Date beginTime = DateUtils.parseDate(user.getParams().get("beginTime"));
+            Date endTime = DateUtils.parseDate(user.getParams().get("endTime"));
+            for (SysUser userVO : userList) {
+                if ((StringUtils.isEmpty(user.getUserName()) || StringUtils.equals(userVO.getUserName(), user.getUserName())) &&
+                        (StringUtils.isEmpty(user.getPhonenumber()) || StringUtils.equals(userVO.getPhonenumber(), user.getPhonenumber())) &&
+                        (StringUtils.isEmpty(user.getStatus()) || StringUtils.equals(userVO.getStatus(), user.getStatus())) &&
+                        (beginTime == null || userVO.getCreateTime().getTime() >= beginTime.getTime()) &&
+                        (endTime == null || userVO.getCreateTime().getTime() <= endTime.getTime()) &&
+                        UserStatus.OK.getCode().equals(userVO.getDelFlag())
+                ) {
+                    result.add(userVO);
+                }
+
+            }
+            return result;
         }
+    }
+
+    /**
+     * 获取用户信息列表
+     * @return
+     */
+    private List<SysUser> getSysUsers() {
+        List<SysUser> userList = CacheUtils.getCacheObject(Constants.USER_EHCACHE_KEY);
+        if (CollectionUtils.isEmpty(userList)) {
+            userList = JsonFileUtils.readJson(sysUserFilePath, SysUser.class);
+            CacheUtils.putCacheObject(Constants.USER_EHCACHE_KEY, userList);
+        }
+        return userList;
     }
 
     /**
@@ -114,9 +145,18 @@ public class SysUserServiceImpl implements ISysUserService
      * @return 用户对象信息
      */
     @Override
-    public SysUser selectUserByUserName(String userName)
-    {
-        return userMapper.selectUserByUserName(userName);
+    public SysUser selectUserByUserName(String userName) {
+        if (!RuoYiConfig.isNoDatabaseEnabled()) {
+            return userMapper.selectUserByUserName(userName);
+        } else {
+            List<SysUser> userList = getSysUsers();
+            for (SysUser userVO : userList) {
+                if (StringUtils.equals(userVO.getUserName(), userName)) {
+                    return userVO;
+                }
+            }
+            return null;
+        }
     }
 
     /**
@@ -126,9 +166,18 @@ public class SysUserServiceImpl implements ISysUserService
      * @return 用户对象信息
      */
     @Override
-    public SysUser selectUserById(Long userId)
-    {
-        return userMapper.selectUserById(userId);
+    public SysUser selectUserById(Long userId) {
+        if (!RuoYiConfig.isNoDatabaseEnabled()) {
+            return userMapper.selectUserById(userId);
+        } else {
+            List<SysUser> userList = getSysUsers();
+            for (SysUser userVO : userList) {
+                if (userId.equals(userVO.getUserId())) {
+                    return userVO;
+                }
+            }
+            return null;
+        }
     }
 
     /**
@@ -149,37 +198,29 @@ public class SysUserServiceImpl implements ISysUserService
     }
 
     /**
-     * 查询用户所属岗位组
-     * 
-     * @param userName 用户名
-     * @return 结果
-     */
-    @Override
-    public String selectUserPostGroup(String userName)
-    {
-        List<SysPost> list = postMapper.selectPostsByUserName(userName);
-        if (CollectionUtils.isEmpty(list))
-        {
-            return StringUtils.EMPTY;
-        }
-        return list.stream().map(SysPost::getPostName).collect(Collectors.joining(","));
-    }
-
-    /**
      * 校验用户名称是否唯一
      * 
      * @param user 用户信息
      * @return 结果
      */
     @Override
-    public String checkUserNameUnique(SysUser user)
-    {
+    public String checkUserNameUnique(SysUser user) {
         Long userId = StringUtils.isNull(user.getUserId()) ? -1L : user.getUserId();
-        SysUser info = userMapper.checkUserNameUnique(user.getUserName());
-        if (StringUtils.isNotNull(info) && info.getUserId().longValue() != userId.longValue())
-        {
-            return UserConstants.NOT_UNIQUE;
+        if (!RuoYiConfig.isNoDatabaseEnabled()) {
+            SysUser info = userMapper.checkUserNameUnique(user.getUserName());
+            if (StringUtils.isNotNull(info) && info.getUserId().longValue() != userId.longValue()) {
+                return UserConstants.NOT_UNIQUE;
+            }
+        } else {
+            List<SysUser> userList = getSysUsers();
+            for (SysUser userVO : userList) {
+                if (StringUtils.equals(userVO.getUserName(), user.getUserName()) && userVO.getUserId() != null &&
+                        userVO.getUserId().longValue() != userId.longValue()) {
+                    return UserConstants.NOT_UNIQUE;
+                }
+            }
         }
+
         return UserConstants.UNIQUE;
     }
 
@@ -193,11 +234,22 @@ public class SysUserServiceImpl implements ISysUserService
     public String checkPhoneUnique(SysUser user)
     {
         Long userId = StringUtils.isNull(user.getUserId()) ? -1L : user.getUserId();
-        SysUser info = userMapper.checkPhoneUnique(user.getPhonenumber());
-        if (StringUtils.isNotNull(info) && info.getUserId().longValue() != userId.longValue())
-        {
-            return UserConstants.NOT_UNIQUE;
+        if (!RuoYiConfig.isNoDatabaseEnabled()) {
+            SysUser info = userMapper.checkPhoneUnique(user.getPhonenumber());
+            if (StringUtils.isNotNull(info) && info.getUserId().longValue() != userId.longValue())
+            {
+                return UserConstants.NOT_UNIQUE;
+            }
+        } else {
+            List<SysUser> userList = getSysUsers();
+            for (SysUser userVO : userList) {
+                if (StringUtils.equals(userVO.getPhonenumber(), user.getPhonenumber()) && userVO.getUserId() != null &&
+                        userVO.getUserId().longValue() != userId.longValue()) {
+                    return UserConstants.NOT_UNIQUE;
+                }
+            }
         }
+        
         return UserConstants.UNIQUE;
     }
 
@@ -211,11 +263,22 @@ public class SysUserServiceImpl implements ISysUserService
     public String checkEmailUnique(SysUser user)
     {
         Long userId = StringUtils.isNull(user.getUserId()) ? -1L : user.getUserId();
-        SysUser info = userMapper.checkEmailUnique(user.getEmail());
-        if (StringUtils.isNotNull(info) && info.getUserId().longValue() != userId.longValue())
-        {
-            return UserConstants.NOT_UNIQUE;
+        if (!RuoYiConfig.isNoDatabaseEnabled()) {
+            SysUser info = userMapper.checkEmailUnique(user.getEmail());
+            if (StringUtils.isNotNull(info) && info.getUserId().longValue() != userId.longValue())
+            {
+                return UserConstants.NOT_UNIQUE;
+            }
+        } else {
+            List<SysUser> userList = getSysUsers();
+            for (SysUser userVO : userList) {
+                if (StringUtils.equals(userVO.getEmail(), user.getEmail()) && userVO.getUserId() != null &&
+                        userVO.getUserId().longValue() != userId.longValue()) {
+                    return UserConstants.NOT_UNIQUE;
+                }
+            }
         }
+        
         return UserConstants.UNIQUE;
     }
 
@@ -261,15 +324,33 @@ public class SysUserServiceImpl implements ISysUserService
      */
     @Override
     @Transactional
-    public int insertUser(SysUser user)
-    {
-        // 新增用户信息
-        int rows = userMapper.insertUser(user);
-        // 新增用户岗位关联
-        insertUserPost(user);
-        // 新增用户与角色管理
-        insertUserRole(user);
-        return rows;
+    public int insertUser(SysUser user) {
+        if (!RuoYiConfig.isNoDatabaseEnabled()) {
+            // 新增用户信息
+            int rows = userMapper.insertUser(user);
+            // 新增用户与角色管理
+            insertUserRole(user);
+            return rows;
+        } else {
+            List<SysUser> userList = getSysUsers();
+
+            int maxUserId = 0;
+            for (SysUser userVO : userList) {
+                if (userVO.getUserId() > maxUserId) {
+                    maxUserId = userVO.getUserId().intValue();
+                }
+            }
+
+            maxUserId++;
+            user.setUserId((long) maxUserId);
+            user.setCreateTime(DateUtils.getNowDate());
+            user.setCreateBy(SecurityUtils.getUsername());
+            user.setDelFlag("0");
+            userList.add(user);
+            JsonFileUtils.writeJson(sysUserFilePath, userList);
+            CacheUtils.putCacheObject(Constants.USER_EHCACHE_KEY, userList);
+            return 1;
+        }
     }
 
     /**
@@ -292,18 +373,42 @@ public class SysUserServiceImpl implements ISysUserService
      */
     @Override
     @Transactional
-    public int updateUser(SysUser user)
-    {
+    public int updateUser(SysUser user) {
         Long userId = user.getUserId();
-        // 删除用户与角色关联
-        userRoleMapper.deleteUserRoleByUserId(userId);
-        // 新增用户与角色管理
-        insertUserRole(user);
-        // 删除用户与岗位关联
-        userPostMapper.deleteUserPostByUserId(userId);
-        // 新增用户与岗位管理
-        insertUserPost(user);
-        return userMapper.updateUser(user);
+        if (!RuoYiConfig.isNoDatabaseEnabled()) {
+            // 删除用户与角色关联
+            userRoleMapper.deleteUserRoleByUserId(userId);
+            // 新增用户与角色管理
+            insertUserRole(user);
+            return userMapper.updateUser(user);
+        } else {
+            updateUserByJson(user);
+            return 1;
+        }
+    }
+
+    /**
+     * 通过json文件更新用户信息
+     * @param user 用户
+     */
+    private void updateUserByJson(SysUser user) {
+        Long userId = user.getUserId();
+        List<SysUser> userList = getSysUsers();
+
+        List<SysUser> updateUserList = new ArrayList<>();
+        for (SysUser userVO : userList) {
+            if (!userVO.getUserId().equals(userId)) {
+                updateUserList.add(userVO);
+            } else {
+                BeanUtils.copyNotNullProperties(userVO, user);
+                user.setUpdateBy(SecurityUtils.getUsername());
+                user.setUpdateTime(DateUtils.getNowDate());
+                updateUserList.add(user);
+            }
+        }
+
+        JsonFileUtils.writeJson(sysUserFilePath, updateUserList);
+        CacheUtils.putCacheObject(Constants.USER_EHCACHE_KEY, updateUserList);
     }
 
     /**
@@ -327,9 +432,13 @@ public class SysUserServiceImpl implements ISysUserService
      * @return 结果
      */
     @Override
-    public int updateUserStatus(SysUser user)
-    {
-        return userMapper.updateUser(user);
+    public int updateUserStatus(SysUser user) {
+        if (!RuoYiConfig.isNoDatabaseEnabled()) {
+            return userMapper.updateUser(user);
+        } else {
+            updateUserByJson(user);
+            return 1;
+        }
     }
 
     /**
@@ -393,29 +502,6 @@ public class SysUserServiceImpl implements ISysUserService
     }
 
     /**
-     * 新增用户岗位信息
-     * 
-     * @param user 用户对象
-     */
-    public void insertUserPost(SysUser user)
-    {
-        Long[] posts = user.getPostIds();
-        if (StringUtils.isNotEmpty(posts))
-        {
-            // 新增用户与岗位管理
-            List<SysUserPost> list = new ArrayList<SysUserPost>(posts.length);
-            for (Long postId : posts)
-            {
-                SysUserPost up = new SysUserPost();
-                up.setUserId(user.getUserId());
-                up.setPostId(postId);
-                list.add(up);
-            }
-            userPostMapper.batchUserPost(list);
-        }
-    }
-
-    /**
      * 新增用户角色信息
      * 
      * @param userId 用户ID
@@ -446,13 +532,26 @@ public class SysUserServiceImpl implements ISysUserService
      */
     @Override
     @Transactional
-    public int deleteUserById(Long userId)
-    {
-        // 删除用户与角色关联
-        userRoleMapper.deleteUserRoleByUserId(userId);
-        // 删除用户与岗位表
-        userPostMapper.deleteUserPostByUserId(userId);
-        return userMapper.deleteUserById(userId);
+    public int deleteUserById(Long userId) {
+        if (!RuoYiConfig.isNoDatabaseEnabled()) {
+            // 删除用户与角色关联
+            userRoleMapper.deleteUserRoleByUserId(userId);
+            return userMapper.deleteUserById(userId);
+        } else {
+            List<SysUser> userList = getSysUsers();
+
+            List<SysUser> updateUserList = new ArrayList<>();
+            for (SysUser userVO : userList) {
+                if (userId.equals(userVO.getUserId())) {
+                    userVO.setDelFlag(UserStatus.DELETED.getCode());
+                }
+                updateUserList.add(userVO);
+            }
+
+            JsonFileUtils.writeJson(sysUserFilePath, updateUserList);
+            CacheUtils.putCacheObject(Constants.USER_EHCACHE_KEY, updateUserList);
+            return 1;
+        }
     }
 
     /**
@@ -463,18 +562,31 @@ public class SysUserServiceImpl implements ISysUserService
      */
     @Override
     @Transactional
-    public int deleteUserByIds(Long[] userIds)
-    {
-        for (Long userId : userIds)
-        {
-            checkUserAllowed(new SysUser(userId));
-            checkUserDataScope(userId);
+    public int deleteUserByIds(Long[] userIds) {
+        List<Long> userIdList = Arrays.asList(userIds);
+        if (!RuoYiConfig.isNoDatabaseEnabled()) {
+            for (Long userId : userIds) {
+                checkUserAllowed(new SysUser(userId));
+                checkUserDataScope(userId);
+            }
+            // 删除用户与角色关联
+            userRoleMapper.deleteUserRole(userIds);
+            return userMapper.deleteUserByIds(userIds);
+        } else {
+            List<SysUser> userList = getSysUsers();
+
+            List<SysUser> updateUserList = new ArrayList<>();
+            for (SysUser userVO : userList) {
+                if (userIdList.contains(userVO.getUserId())) {
+                    userVO.setDelFlag(UserStatus.DELETED.getCode());
+                }
+                updateUserList.add(userVO);
+            }
+
+            JsonFileUtils.writeJson(sysUserFilePath, updateUserList);
+            CacheUtils.putCacheObject(Constants.USER_EHCACHE_KEY, updateUserList);
+            return 1;
         }
-        // 删除用户与角色关联
-        userRoleMapper.deleteUserRole(userIds);
-        // 删除用户与岗位关联
-        userPostMapper.deleteUserPost(userIds);
-        return userMapper.deleteUserByIds(userIds);
     }
 
     /**

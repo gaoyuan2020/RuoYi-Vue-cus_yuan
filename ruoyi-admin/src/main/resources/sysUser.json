@@ -18,9 +18,12 @@
     "loginIp": "127.0.0.1",
     "nickName": "若依test",
     "params": {},
+    "password": "$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2",
     "phonenumber": "15888888888",
     "remark": "管理员",
-    "roles": [],
+    "roleIds": [
+      1
+    ],
     "sex": "1",
     "status": "0",
     "userId": 1,
@@ -43,14 +46,36 @@
     "email": "ry@qq.com",
     "loginDate": "2022-11-11 16:17:35",
     "loginIp": "127.0.0.1",
-    "nickName": "若依test2",
+    "nickName": "若依33",
     "params": {},
+    "password": "$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2",
     "phonenumber": "15666666666",
     "remark": "测试员",
-    "roles": [],
+    "roleIds": [
+      2
+    ],
     "sex": "1",
     "status": "0",
+    "updateBy": "admin",
     "userId": 2,
     "userName": "ry"
+  },
+  {
+    "admin": false,
+    "createBy": "admin",
+    "createTime": "2022-12-08 17:05:56",
+    "delFlag": "0",
+    "deptId": 100,
+    "nickName": "scott3",
+    "params": {},
+    "password": "",
+    "phonenumber": "15011111111",
+    "roleIds": [],
+    "sex": "0",
+    "status": "0",
+    "updateBy": "admin",
+    "updateTime": "2022-12-08 18:35:52.935",
+    "userId": 3,
+    "userName": "scott"
   }
 ]

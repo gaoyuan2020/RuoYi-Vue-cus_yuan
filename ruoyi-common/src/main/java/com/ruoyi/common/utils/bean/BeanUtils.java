@@ -1,8 +1,12 @@
 package com.ruoyi.common.utils.bean;
 
+import java.beans.Introspector;
+import java.beans.PropertyDescriptor;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,6 +41,47 @@ public class BeanUtils extends org.springframework.beans.BeanUtils
         catch (Exception e)
         {
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * Bean非空属性复制工具方法
+     * @param destModel 目标对象
+     * @param srcModel 源对象
+     */
+    public static void copyNotNullProperties(Object destModel, Object srcModel) {
+        if (srcModel != null && destModel != null) {
+            try {
+                PropertyDescriptor[] srcDescriptors = Introspector.getBeanInfo(srcModel.getClass()).getPropertyDescriptors();
+                PropertyDescriptor[] destDescriptors = Introspector.getBeanInfo(destModel.getClass()).getPropertyDescriptors();
+                Map<String, PropertyDescriptor> destPropertyNameDescriptorMap = new HashMap();
+                PropertyDescriptor[] var5 = destDescriptors;
+                int var6 = destDescriptors.length;
+
+                int var7;
+                PropertyDescriptor srcDescriptor;
+                for(var7 = 0; var7 < var6; ++var7) {
+                    srcDescriptor = var5[var7];
+                    destPropertyNameDescriptorMap.put(srcDescriptor.getName(), srcDescriptor);
+                }
+
+                var5 = srcDescriptors;
+                var6 = srcDescriptors.length;
+
+                for(var7 = 0; var7 < var6; ++var7) {
+                    srcDescriptor = var5[var7];
+                    PropertyDescriptor destDescriptor = (PropertyDescriptor)destPropertyNameDescriptorMap.get(srcDescriptor.getName());
+                    if (destDescriptor != null && destDescriptor.getPropertyType() == srcDescriptor.getPropertyType() && destDescriptor.getPropertyType() != Class.class && srcDescriptor.getReadMethod() != null) {
+                        Object val = srcDescriptor.getReadMethod().invoke(srcModel);
+                        if (val != null && destDescriptor.getWriteMethod() != null) {
+                            destDescriptor.getWriteMethod().invoke(destModel, val);
+                        }
+                    }
+                }
+
+            } catch (Exception var11) {
+                throw new RuntimeException(var11);
+            }
         }
     }
 

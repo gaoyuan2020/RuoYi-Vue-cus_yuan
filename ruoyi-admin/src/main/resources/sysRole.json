@@ -1,0 +1,34 @@
+[
+  {
+    "admin": true,
+    "createTime": "2022-11-11 16:17:38",
+    "dataScope": "1",
+    "delFlag": "0",
+    "deptCheckStrictly": true,
+    "flag": false,
+    "menuCheckStrictly": true,
+    "params": {},
+    "remark": "超级管理员",
+    "roleId": 1,
+    "roleKey": "admin",
+    "roleName": "超级管理员",
+    "roleSort": "1",
+    "status": "0"
+  },
+  {
+    "admin": false,
+    "createTime": "2022-11-11 16:17:38",
+    "dataScope": "2",
+    "delFlag": "0",
+    "deptCheckStrictly": true,
+    "flag": false,
+    "menuCheckStrictly": true,
+    "params": {},
+    "remark": "普通角色",
+    "roleId": 2,
+    "roleKey": "common",
+    "roleName": "普通角色",
+    "roleSort": "2",
+    "status": "0"
+  }
+]

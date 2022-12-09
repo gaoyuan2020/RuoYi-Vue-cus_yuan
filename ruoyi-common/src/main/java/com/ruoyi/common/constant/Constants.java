@@ -86,6 +86,10 @@ public class Constants
     public static final String REPEAT_SUBMIT_EHCACHE = "repeatSubmitCache";
     //登录账户密码错误次数缓存 默认有效期10分钟
     public static final String PWD_ERR_CNT_EHCACHE = "pwdErrCntCache";
+    //用户缓存key
+    public static final String USER_EHCACHE_KEY = "userCacheKey";
+    //角色缓存key
+    public static final String ROLE_EHCACHE_KEY = "roleCacheKey";
 
     /**
      * 令牌前缀

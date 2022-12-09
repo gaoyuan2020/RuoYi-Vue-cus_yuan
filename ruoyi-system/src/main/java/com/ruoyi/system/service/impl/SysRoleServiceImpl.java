@@ -1,12 +1,16 @@
 package com.ruoyi.system.service.impl;
 
 import com.ruoyi.common.annotation.DataScope;
+import com.ruoyi.common.config.RuoYiConfig;
+import com.ruoyi.common.constant.Constants;
 import com.ruoyi.common.constant.UserConstants;
 import com.ruoyi.common.core.domain.entity.SysRole;
 import com.ruoyi.common.core.domain.entity.SysUser;
 import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.common.utils.CacheUtils;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.StringUtils;
+import com.ruoyi.common.utils.file.JsonFileUtils;
 import com.ruoyi.common.utils.spring.SpringUtils;
 import com.ruoyi.system.domain.SysRoleDept;
 import com.ruoyi.system.domain.SysRoleMenu;
@@ -17,9 +21,12 @@ import com.ruoyi.system.mapper.SysRoleMenuMapper;
 import com.ruoyi.system.mapper.SysUserRoleMapper;
 import com.ruoyi.system.service.ISysRoleService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 
+import java.io.File;
 import java.util.*;
 
 /**
@@ -42,6 +49,10 @@ public class SysRoleServiceImpl implements ISysRoleService
     @Autowired
     private SysRoleDeptMapper roleDeptMapper;
 
+    //用户信息json文件路径
+    @Value(value = "${sysRoleFilePath}")
+    private File sysRoleFilePath;
+
     /**
      * 根据条件分页查询角色数据
      * 
@@ -52,7 +63,16 @@ public class SysRoleServiceImpl implements ISysRoleService
     @DataScope(deptAlias = "d")
     public List<SysRole> selectRoleList(SysRole role)
     {
-        return roleMapper.selectRoleList(role);
+        if (!RuoYiConfig.isNoDatabaseEnabled()) {
+            return roleMapper.selectRoleList(role);
+        } else {
+            List<SysRole> roleList = CacheUtils.getCacheObject(Constants.ROLE_EHCACHE_KEY);
+            if (CollectionUtils.isEmpty(roleList)) {
+                roleList = JsonFileUtils.readJson(sysRoleFilePath, SysRole.class);
+                CacheUtils.putCacheObject(Constants.ROLE_EHCACHE_KEY, roleList);
+            }
+            return roleList;
+        }
     }
 
     /**
